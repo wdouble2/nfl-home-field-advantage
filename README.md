@@ -30,6 +30,11 @@ How much does playing at home help NFL teams, did it disappear in 2020 when stad
 - [`analysis.ipynb`](analysis.ipynb): version 1. Pull → clean → load into Postgres → 4 SQL queries (see [`/sql`](sql)) → charts 1–3.
 - [`deep_dive.ipynb`](deep_dive.ipynb): version 2. Everything above, re-run from the raw data. Helper functions are in [`hfa.py`](hfa.py) (pandas + numpy only).
 
+## On the web
+- **Live write-up:** [wdouble2.github.io](https://wdouble2.github.io/#work), with an interactive version of the main chart.
+- **Live SQL window:** run the version-1 queries (or your own) against the 2015–2025 games, right in the browser.
+- **Team Explorer:** pick any team for its ratings by season, home vs. road record, and where its home edge ranks among all 32; compare two teams head to head. Its data comes from [`build_site_data.py`](build_site_data.py); the site's link-preview image comes from [`make_preview_image.py`](make_preview_image.py).
+
 ## Run it yourself
 ```bash
 python -m venv .venv && source .venv/bin/activate
