@@ -222,3 +222,56 @@ def loo_strength_gap(df, split=None, labels=None):
         home_term = X[:, :len(names)] @ beta[:len(names)]
         out.loc[d.index] = loo_pred - home_term
     return out
+
+
+def _ridge_ratings(d, home_edge, prior_mean, lam):
+    """Team ratings (points) from games `d`, home edge held fixed, pulled toward `prior_mean` (dict)."""
+    import numpy as np
+    teams = sorted(set(d.home_team) | set(d.away_team) | set(prior_mean))
+    idx = {t: i for i, t in enumerate(teams)}
+    X = np.zeros((len(d), len(teams)))
+    for r, (h, a) in enumerate(zip(d.home_team, d.away_team)):
+        X[r, idx[h]] += 1
+        X[r, idx[a]] -= 1
+    m = np.array([prior_mean.get(t, 0.0) for t in teams])
+    y = d.margin.to_numpy(float) - home_edge
+    r = np.linalg.solve(X.T @ X + lam * np.eye(len(teams)), X.T @ y + lam * m)
+    return dict(zip(teams, r))
+
+
+def walk_forward(df, first=2016, lam=5.0, carry=0.5):
+    """Predict every game using ONLY information available before it was played.
+
+    For each season t (from `first`) and each week w:
+      - home edge and result spread (sigma) come from seasons before t (rating model, pooled);
+      - team ratings come from season t's games before week w, pulled toward `carry` x last
+        season's final ratings (lam = how strongly; new teams start at average).
+    Each game gets a home-win probability from a model WITH the home edge and one WITHOUT it
+    (ratings refit with the edge set to 0), plus the plain home-win rate of earlier seasons.
+    """
+    from statistics import NormalDist
+    nd = NormalDist()
+    edges = season_home_edges(df)
+    out = []
+    prev = {}
+    for t in sorted(df.season.unique()):
+        season = df[df.season == t]
+        if t >= first:
+            past = edges[edges.season < t]
+            pooled = pool(past)
+            h, sigma = pooled.home_edge, pooled.sigma
+            home_rate = df[df.season < t].home_win.mean()
+            prior = {k: carry * v for k, v in prev.items()}
+            for w in sorted(season.week.unique()):
+                train, test = season[season.week < w], season[season.week == w]
+                r_with = _ridge_ratings(train, h, prior, lam)
+                r_without = _ridge_ratings(train, 0.0, prior, lam)
+                for g in test.itertuples():
+                    gap_w = r_with.get(g.home_team, 0) - r_with.get(g.away_team, 0)
+                    gap_0 = r_without.get(g.home_team, 0) - r_without.get(g.away_team, 0)
+                    out.append({"game_id": g.game_id, "season": t, "week": w, "home_win": g.home_win,
+                                "p_with_home_edge": nd.cdf((h + gap_w) / sigma),
+                                "p_without_home_edge": nd.cdf(gap_0 / sigma),
+                                "p_home_rate": home_rate})
+        prev = _ridge_ratings(season, edges[edges.season == t].home_edge.iat[0], {}, 1e-6)
+    return pd.DataFrame(out)
