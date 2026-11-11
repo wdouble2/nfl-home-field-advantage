@@ -145,3 +145,80 @@ def pool(edges):
     est = (w * edges.home_edge).sum() / w.sum()
     return pd.Series({"home_edge": est, "se": 1 / math.sqrt(w.sum()), "sigma": (w * edges.sigma).sum() / w.sum(),
                       "games": edges.games.sum()})
+
+
+def season_home_edges_wins(df, split=None, labels=None, prior_sd=1.0):
+    """Like season_home_edges, but from wins and losses only (scores ignored).
+
+    Fits, separately each season, a logistic model:
+        log-odds(home win) = home_edge[group] + rating[home] - rating[away]
+    Team ratings get a gentle pull toward average (normal prior with sd `prior_sd` in log-odds),
+    because with few games per team an unbeaten or winless team would otherwise get an infinite
+    rating. home_edge is in log-odds; 1 / (1 + exp(-home_edge)) is the equal-team home win share.
+    Caution: the pull toward average leaves some strength in the home term when home teams are
+    usually the stronger side (college non-conference games), so use it for balanced groups.
+    """
+    import math
+    import numpy as np
+    rows = []
+    for season, d in df.groupby("season"):
+        grp = d[split].map(labels).to_numpy() if split else np.array(["all"] * len(d))
+        names = sorted(set(grp))
+        teams = sorted(set(d.home_team) | set(d.away_team))
+        idx = {t: i for i, t in enumerate(teams)}
+        X = np.zeros((len(d), len(names) + len(teams)))
+        for j, n in enumerate(names):
+            X[:, j] = grp == n
+        for r, (h, a) in enumerate(zip(d.home_team, d.away_team)):
+            X[r, len(names) + idx[h]] += 1
+            X[r, len(names) + idx[a]] -= 1
+        y = d.home_win.to_numpy(float)
+        penalty = np.r_[np.zeros(len(names)), np.full(len(teams), 1 / prior_sd ** 2)]
+        beta = np.zeros(X.shape[1])
+        for _ in range(100):                       # Newton's method
+            p = 1 / (1 + np.exp(-X @ beta))
+            H = X.T @ (X * (p * (1 - p))[:, None]) + np.diag(penalty)
+            step = np.linalg.solve(H, X.T @ (y - p) - penalty * beta)
+            beta += step
+            if np.abs(step).max() < 1e-9:
+                break
+        cov = np.linalg.inv(H)
+        for j, n in enumerate(names):
+            rows.append({"season": season, "group": n, "home_edge": beta[j], "se": math.sqrt(cov[j, j]),
+                         "sigma": float("nan"), "games": int((grp == n).sum())})
+    return pd.DataFrame(rows)
+
+
+def loo_strength_gap(df, split=None, labels=None):
+    """Strength gap for each game from ratings fit WITHOUT that game (leave-one-out).
+
+    Uses the standard shortcut for least squares: the prediction for game i with game i left out
+    is  y_i - residual_i / (1 - leverage_i).  Subtracting the game's home-edge term leaves the gap
+    in team strength, so picking "close matchups" doesn't peek at the game's own result.
+    """
+    import numpy as np
+    out = pd.Series(index=df.index, dtype=float)
+    for season, d in df.groupby("season"):
+        grp = d[split].map(labels).to_numpy() if split else np.array(["all"] * len(d))
+        names = sorted(set(grp))
+        teams = sorted(set(d.home_team) | set(d.away_team))
+        idx = {t: i for i, t in enumerate(teams)}
+        X = np.zeros((len(d), len(names) + len(teams) - 1))
+        for j, n in enumerate(names):
+            X[:, j] = grp == n
+        for r, (h, a) in enumerate(zip(d.home_team, d.away_team)):
+            for team, sign in ((h, 1), (a, -1)):
+                i = idx[team]
+                if i < len(teams) - 1:
+                    X[r, len(names) + i] += sign
+                else:
+                    X[r, len(names):] -= sign
+        y = d.margin.to_numpy(float)
+        pinv = np.linalg.pinv(X)
+        beta = pinv @ y
+        resid = y - X @ beta
+        lev = np.einsum("ij,ji->i", X, pinv)
+        loo_pred = y - resid / np.clip(1 - lev, 1e-9, None)
+        home_term = X[:, :len(names)] @ beta[:len(names)]
+        out.loc[d.index] = loo_pred - home_term
+    return out

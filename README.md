@@ -11,29 +11,51 @@
 **The trap:** raw home win % says college home field is far bigger (58.6% vs. 54.6%). But strong schools often schedule weaker visitors at home, and college talent gaps are wider. So the comparison removes team strength with Part 1's rating model and measures the home edge **in points between two equally good teams**.
 
 ### Verdict
-1. **Home field is worth about 2 points in both leagues.** In normal seasons: college conference games **+2.4 pts** (95% range 2.0–2.8), NFL **+1.9 pts** (1.4–2.4). Between equally good teams, that's a home win **56.6%** vs. **56.2%** of the time. College is slightly higher, but the gap could be luck (p = 0.11).
+1. **Home field is worth about 2 points in both leagues.** In normal seasons: college conference games **+2.4 pts** (95% range 2.0–2.8), NFL **+1.9 pts** (1.4–2.4). Between equally good teams, the home team wins about **57%** of the time in college and **56%** in the NFL. College is slightly higher, but the gap could be luck (p = 0.11).
 2. **College only looks bigger because of scheduling.** In non-conference games the home team starts about 7 points stronger and wins 66.8% of the time. With team strength removed, non-conference games show the same +2.4-point edge as conference games.
-3. **Home field shrank in 2020 in both leagues.** NFL: +1.9 → **+0.1 pts** (p = 0.03). College conference games: +2.4 → **+1.0 pts** (p = 0.055, just short of the usual 0.05 bar; all FBS games: p = 0.02). The two drops are about the same size (p = 0.75 for a difference), so there's no evidence that fans matter more in one league than the other.
-4. **That fits a crowd effect, but doesn't prove one.** It's a single season, and the NFL's 2019 edge (−0.05 pts, with full stadiums) was just as low. College attendance in 2020 can't settle it either: crowd size mostly followed conference rules, and comparing games within the same conference, bigger crowds showed almost no extra edge (p = 0.83).
+3. **In 2020 the NFL's home edge vanished; college's evidence is mixed.** NFL: +1.9 → **+0.1 pts** (p = 0.03), and it fell on every other measure too, though it's significant only in point margins, and 2019 (full stadiums) was nearly as low. College: margins shrank (+2.4 → +1.0 pts, p = 0.055), but home teams won about as often as usual (close matchups 58.8% vs. 57.5%). So the data can't say whether fans matter more in one league.
+4. **In college, home edge rises only slightly with crowd size.** Within conferences, each extra 10,000 fans goes with about **+0.2 pts** (p = 0.01), though bigger crowds also mean bigger, more motivated games. Power 5 schools (median crowd 54,000) get **+2.5 pts** vs. **+2.2** for Group of 5 schools (18,000), a gap that could be luck. Crowd size isn't the whole story: schools with modest crowds still get most of the edge.
 
-![Normal seasons vs. 2020 by league, team strength removed](charts/08_league_fan_effect.png)
+![2020 vs. normal seasons, two ways](charts/08_league_fan_effect.png)
+
+![Home edge vs. typical crowd by conference](charts/10_crowd_size.png)
+
+### Robustness checks
+The main result doesn't depend on one modelling choice:
+
+| Check | NFL | College conference |
+| --- | --- | --- |
+| Rating model, points (main result) | +1.9 pts | +2.4 pts |
+| Same, blowouts capped at 28 points | +1.8 pts | +2.1 pts |
+| Wins-only model: equal-team home win %* | 55.8–56.4% | 56.8–59.8% |
+| Real close matchups**, home win % | 55.6% | 57.5% |
+| 2020 drop, points (p) | 0.03 | 0.055 |
+| 2020 drop, points with 28-point cap (p) | 0.04 | 0.14 |
+| 2020 drop, wins-only model* (p) | 0.16–0.17 | 0.89–0.97 |
+
+\* Range across how strongly team ratings are pulled toward average (the pull shrinks the home edge a little, more in college). \*\* Teams within 3 points in strength, judged from ratings fit without that game.
+
+Both leagues land around 56–60% for equal teams on every measure. The NFL's 2020 drop shows up on every measure but is significant only in point margins; college's shows up only in margins. Apart from 2020, season-to-season changes in both leagues are no bigger than chance would produce, and 2020 has the biggest combined drop of the 11 seasons.
 
 ### Limitations
 - 2020 is one season, and college teams played only 3–12 games, so 2020 estimates are noisy (wide 95% ranges).
 - "2020" means fewer fans, not zero: many college stadiums allowed partial crowds, and a few NFL stadiums did too. Recorded attendance of 0 may sometimes mean "not recorded".
 - 2020 college schedules were mostly conference games, and some conferences played shortened seasons.
-- Raw win % isn't comparable between leagues (see "The trap"), so the verdict uses points with team strength removed.
-- Data quirks: the API labels conference title games only from 2022, so earlier ones are found by date; and its venue labels are sometimes inconsistent, so the usual-stadium rule drops a few genuine home games (negligible effect on results).
+- Bigger crowds also come with bigger, more motivated games, so the crowd-size links are associations, not proof that fans cause anything.
+- Raw win % isn't comparable between leagues (see "The trap"), so the verdict uses team strength removed.
+- Data quirks: the API labels conference title games only from 2022, so earlier ones are found by date; and its venue labels are sometimes inconsistent, so the usual-stadium rule drops a few genuine home games (negligible effect).
 
 ### How it was built
 - **Data:** CollegeFootballData.com API (`/games`, regular season 2015–2025) pulled with `requests`; columns converted from camelCase to snake_case. Helpers in [`cfb.py`](cfb.py).
 - **Cleaning:** both teams FBS; no neutral sites, unfinished games, ties or conference title games (the higher seed hosts); only games at the home team's usual stadium (same rule as Part 1).
 - **Database:** `cfb.games` table plus a `compare.league_games` view that stacks the NFL and both college groups with a `league` column ([`sql/05`](sql/05_create_league_view.sql)), queried by [`sql/06–09`](sql).
-- **Statistics:** raw win % with Wilson 95% ranges (`proportion_confint`) and two-proportion z-tests (`proportions_ztest`). Then Part 1's rating model fit each season (`margin = home edge + rating[home] − rating[away]`), with separate home edges for college conference and non-conference games, model-based standard errors and inverse-variance pooling across seasons. (In 2020 the college schedule split into four groups of teams that never met; the home edge is still measured within each group.) Differences use z-tests; the crowd check uses an OLS trend with and without conference.
+- **Statistics:** raw win % with Wilson 95% ranges (`proportion_confint`) and two-proportion z-tests (`proportions_ztest`). Then Part 1's rating model fit each season (`margin = home edge + rating[home] − rating[away]`), with separate home edges for college conference and non-conference games, model-based standard errors and inverse-variance pooling across seasons. (In 2020 the college schedule split into four groups of teams that never met; the home edge is still measured within each group.) Differences use z-tests. Robustness: capped margins, a wins-only logistic rating model ([`cfb.season_home_edges_wins`](cfb.py)), close-matchup win rates and a season-by-season placebo. Crowd checks use OLS with standard errors clustered by school.
 - **Review:** checked by a separate AI review agent (data, statistics and every number in this README) before publishing; its findings are fixed here.
 
 ### What changed from the first version of Part 2
 The first version (commit `590adbb`) compared raw win % only and said college conference games "didn't budge" in 2020 while the NFL lost its edge. A review found that wrong: raw win % hid a similar drop in college. It also kept 39 conference title games hosted by the higher seed and 21 games away from the home team's usual stadium, and it described conference games as "evenly matched" (they aren't; they're balanced between home and away teams). All of this is fixed above.
+
+A second round of robustness checks (version 3) then showed the college 2020 drop appears only in point margins, not in wins, so verdict 3 now says the college evidence is mixed, and added the crowd-size analysis.
 
 ---
 
@@ -66,7 +88,7 @@ How much does playing at home help NFL teams, did it disappear in 2020 when stad
 - **Honest limits:** 2020 still had some fans in some stadiums (attendance isn't in the data); one strength rating per team per season; situations overlap, so rest, travel, time zones and division games are also fit jointly.
 
 ## Notebooks
-- [`league_compare.ipynb`](league_compare.ipynb): Part 2. College pull → clean → load into Postgres → SQL 05–09 → raw and strength-adjusted statistics → charts 8–9.
+- [`league_compare.ipynb`](league_compare.ipynb): Part 2. College pull → clean → load into Postgres → SQL 05–09 → raw and strength-adjusted statistics → robustness checks → crowd size → charts 8–10.
 - [`analysis.ipynb`](analysis.ipynb): version 1. Pull → clean → load into Postgres → 4 SQL queries (see [`/sql`](sql)) → charts 1–3.
 - [`deep_dive.ipynb`](deep_dive.ipynb): version 2. Everything above, re-run from the raw data. Helper functions are in [`hfa.py`](hfa.py) (pandas + numpy only).
 
