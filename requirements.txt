@@ -2,8 +2,10 @@ jupyter==1.1.1
 matplotlib==3.11.2
 nflreadpy==0.1.5
 pandas==3.1.1
-psycopg==3.3.8
 psycopg-binary==3.3.8
+psycopg==3.3.8
 pyarrow==26.0.1
 python-dotenv==1.2.4
+requests==2.34.2
 SQLAlchemy==2.1.8
+statsmodels==0.15.0
