@@ -22,7 +22,7 @@ fade = np.clip(0.16 - np.hypot((xs - 300) / 700, (ys - 420) / 420) * 0.13, 0, 0.
 bg.scatter(xs, ys, s=1.6, c=TEXT, alpha=fade, linewidths=0)
 bg.add_patch(FancyBboxPatch((702, 85), 444, 460, boxstyle="round,pad=0,rounding_size=18", facecolor=PANEL, edgecolor=LINE, linewidth=1.2))
 
-fig.text(0.06, 0.865, "WILLIAM DOUBLE  ·  DATA ANALYST, SPORTS ANALYTICS", color=MUTED, fontsize=12.5, family=MONO)
+fig.text(0.06, 0.865, "WILLIAM DOUBLE  ·  DATA PROFESSIONAL, SPORTS ANALYTICS", color=MUTED, fontsize=12.5, family=MONO)
 for i, line in enumerate(["How much is NFL", "home field really", "worth?"]):
     fig.text(0.06, 0.745 - 0.1 * i, line, color=TEXT, fontsize=46, family=SANS, weight="bold")
 fig.text(0.06, 0.445, "27 seasons  ·  6,878 games  ·  Python + SQL", color=MUTED, fontsize=16, family=SANS)
